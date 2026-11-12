@@ -152,6 +152,16 @@ New sessions get a branch named `branch_prefix` followed by the session title. T
 
 Session titles are limited to 32 characters.
 
+#### Branch name case
+
+Branch names are lower-cased by default. Set `preserve_branch_case` to `true` to keep upper-case letters, e.g. for branches like `Ticket/19235/FeatureName` or Jira keys like `JRA-123`:
+
+```json
+{
+  "preserve_branch_case": true
+}
+```
+
 #### Pushing
 
 By default, the push action commits any changes, pushes the branch to `origin`, syncs it with the GitHub CLI, and opens the branch in your browser. Two options change this:

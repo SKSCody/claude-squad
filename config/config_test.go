@@ -175,6 +175,7 @@ func TestLoadConfig(t *testing.T) {
 		// Options missing from the file keep their default (zero) behavior
 		assert.Equal(t, "", config.PushRemote)
 		assert.False(t, config.SkipBrowserOnPush)
+		assert.False(t, config.PreserveBranchCase)
 	})
 
 	t.Run("loads push options", func(t *testing.T) {
@@ -314,6 +315,7 @@ func TestSaveConfig(t *testing.T) {
 			BranchPrefix:       "test-branch/",
 			PushRemote:         "upstream",
 			SkipBrowserOnPush:  true,
+			PreserveBranchCase: true,
 		}
 
 		err := SaveConfig(testConfig)
@@ -333,5 +335,6 @@ func TestSaveConfig(t *testing.T) {
 		assert.Equal(t, testConfig.BranchPrefix, loadedConfig.BranchPrefix)
 		assert.Equal(t, testConfig.PushRemote, loadedConfig.PushRemote)
 		assert.Equal(t, testConfig.SkipBrowserOnPush, loadedConfig.SkipBrowserOnPush)
+		assert.Equal(t, testConfig.PreserveBranchCase, loadedConfig.PreserveBranchCase)
 	})
 }

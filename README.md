@@ -1,6 +1,8 @@
-# Claude Squad [![CI](https://github.com/smtg-ai/claude-squad/actions/workflows/build.yml/badge.svg)](https://github.com/smtg-ai/claude-squad/actions/workflows/build.yml) [![GitHub Release](https://img.shields.io/github/v/release/smtg-ai/claude-squad)](https://github.com/smtg-ai/claude-squad/releases/latest)
+# Claude Squad [![CI](https://github.com/smtg-ai/claude-squad/actions/workflows/build.yml/badge.svg)](https://github.com/smtg-ai/claude-squad/actions/workflows/build.yml) [![GitHub Release](https://img.shields.io/github/v/release/SKSCody/claude-squad?include_prereleases)](https://github.com/SKSCody/claude-squad/releases)
 
 [Claude Squad](https://smtg-ai.github.io/claude-squad/) is a terminal app that manages multiple [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex), [Gemini](https://github.com/google-gemini/gemini-cli) (and other local agents including [Aider](https://github.com/Aider-AI/aider)) in separate workspaces, allowing you to work on multiple tasks simultaneously.
+
+> **Fork notice:** this is the `custom` branch of [SKSCody/claude-squad](https://github.com/SKSCody/claude-squad), a fork of [smtg-ai/claude-squad](https://github.com/smtg-ai/claude-squad). It adds the `push_remote`, `skip_browser_on_push` and `preserve_branch_case` config options (see [Configuration](#configuration)). The install script below installs this fork's releases.
 
 
 ![Claude Squad Screenshot](assets/screenshot.png)
@@ -23,6 +25,8 @@ Both Homebrew and manual installation will install Claude Squad as `cs` on your 
 
 #### Homebrew
 
+Homebrew installs the upstream release, which doesn't include this fork's changes. Use the manual install to get them.
+
 ```bash
 brew install claude-squad
 ln -s "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs"
@@ -33,7 +37,7 @@ ln -s "$(brew --prefix)/bin/claude-squad" "$(brew --prefix)/bin/cs"
 Claude Squad can also be installed by running the following command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SKSCody/claude-squad/custom/install.sh | bash
 ```
 
 This puts the `cs` binary in `~/.local/bin`.
@@ -41,7 +45,7 @@ This puts the `cs` binary in `~/.local/bin`.
 To use a custom name for the binary:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/smtg-ai/claude-squad/main/install.sh | bash -s -- --name <your-binary-name>
+curl -fsSL https://raw.githubusercontent.com/SKSCody/claude-squad/custom/install.sh | bash -s -- --name <your-binary-name>
 ```
 
 ### Prerequisites

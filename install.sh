@@ -2,6 +2,9 @@
 
 set -e
 
+# GitHub repository to install releases from (owner/name).
+REPO=${CS_REPO:-SKSCody/claude-squad}
+
 setup_shell_and_path() {
     BIN_DIR=${BIN_DIR:-$HOME/.local/bin}
 
@@ -59,7 +62,7 @@ detect_platform_and_arch() {
 
 get_latest_version() {
     # Get latest version from GitHub API, including prereleases
-    API_RESPONSE=$(curl -sS "https://api.github.com/repos/smtg-ai/claude-squad/releases")
+    API_RESPONSE=$(curl -sS "https://api.github.com/repos/${REPO}/releases")
     if [ $? -ne 0 ]; then
         echo "Failed to connect to GitHub API"
         exit 1
@@ -296,7 +299,7 @@ main() {
         VERSION=$(get_latest_version)
     fi
 
-    RELEASE_URL="https://github.com/smtg-ai/claude-squad/releases/download/v${VERSION}"
+    RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
     ARCHIVE_NAME="claude-squad_${VERSION}_${PLATFORM}_${ARCHITECTURE}${ARCHIVE_EXT}"
     BINARY_URL="${RELEASE_URL}/${ARCHIVE_NAME}"
     TMP_DIR=$(mktemp -d)

@@ -152,6 +152,34 @@ New sessions get a branch named `branch_prefix` followed by the session title. T
 
 Session titles are limited to 32 characters.
 
+#### Branch name case
+
+Branch names are lower-cased by default. Set `preserve_branch_case` to `true` to keep upper-case letters, e.g. for branches like `Ticket/19235/FeatureName` or Jira keys like `JRA-123`:
+
+```json
+{
+  "preserve_branch_case": true
+}
+```
+
+#### Pushing
+
+By default, the push action commits any changes, pushes the branch to `origin`, syncs it with the GitHub CLI, and opens the branch in your browser. Two options change this:
+
+| Field                  | Description                                                                                          |
+|------------------------|------------------------------------------------------------------------------------------------------|
+| `push_remote`          | Git remote to push to. When set, the branch is pushed with `git push -u <remote>` and `gh repo sync` is skipped. |
+| `skip_browser_on_push` | Set to `true` to stop opening the branch in the browser after a push.                                |
+
+For example, if you push branches to your own fork, configured as the `upstream` remote:
+
+```json
+{
+  "push_remote": "upstream",
+  "skip_browser_on_push": true
+}
+```
+
 ### FAQs
 
 #### Failed to start new session

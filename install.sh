@@ -296,7 +296,13 @@ main() {
 
     VERSION=${VERSION:-"latest"}
     if [[ "$VERSION" == "latest" ]]; then
-        VERSION=$(get_latest_version)
+        # get_latest_version runs in a subshell, so its exit only stops the subshell.
+        # Check its status here and print its error message instead of using it as the version.
+        if ! VERSION=$(get_latest_version); then
+            echo "$VERSION" >&2
+            echo "Could not determine the latest release of ${REPO}." >&2
+            exit 1
+        fi
     fi
 
     RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"

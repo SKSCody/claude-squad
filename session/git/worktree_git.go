@@ -84,10 +84,8 @@ func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string
 	}
 
 	if isDirty {
-		// Stage all changes
-		if _, err := g.runGitCommand(g.worktreePath, "add", "."); err != nil {
-			log.ErrorLog.Print(err)
-			return fmt.Errorf("failed to stage changes: %w", err)
+		if err := g.StageAll(); err != nil {
+			return err
 		}
 
 		// Create commit
@@ -131,6 +129,25 @@ func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string
 	return nil
 }
 
+// StageAll stages all changes in the worktree.
+func (g *GitWorktree) StageAll() error {
+	if _, err := g.runGitCommand(g.worktreePath, "add", "."); err != nil {
+		log.ErrorLog.Print(err)
+		return fmt.Errorf("failed to stage changes: %w", err)
+	}
+	return nil
+}
+
+// CommitEditorCmd returns a git commit command for the worktree that opens the
+// user's configured git editor to write the commit message. It is meant to be run
+// interactively in the user's terminal (e.g. via tea.ExecProcess). Git aborts the
+// commit with a non-zero exit status if the message is left empty.
+func (g *GitWorktree) CommitEditorCmd() *exec.Cmd {
+	cmd := exec.Command("git", "commit", "--no-verify")
+	cmd.Dir = g.worktreePath
+	return cmd
+}
+
 // CommitChanges commits changes locally without pushing to remote
 func (g *GitWorktree) CommitChanges(commitMessage string) error {
 	// Check if there are any changes to commit
@@ -140,10 +157,8 @@ func (g *GitWorktree) CommitChanges(commitMessage string) error {
 	}
 
 	if isDirty {
-		// Stage all changes
-		if _, err := g.runGitCommand(g.worktreePath, "add", "."); err != nil {
-			log.ErrorLog.Print(err)
-			return fmt.Errorf("failed to stage changes: %w", err)
+		if err := g.StageAll(); err != nil {
+			return err
 		}
 
 		// Create commit (local only)

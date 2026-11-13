@@ -66,3 +66,67 @@ func TestPushChanges_CustomRemote(t *testing.T) {
 		t.Fatalf("upstream tracking = %q, want %q", upstreamBranch, "upstream/"+branchName)
 	}
 }
+
+func TestCommitEditorCmd(t *testing.T) {
+	newRepo := func(t *testing.T) *GitWorktree {
+		t.Helper()
+		repoPath := filepath.Join(t.TempDir(), "repo")
+		mustRunGit(t, "", "init", repoPath)
+		mustRunGit(t, repoPath, "config", "user.name", "Test User")
+		mustRunGit(t, repoPath, "config", "user.email", "test@example.com")
+		if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("hello\n"), 0644); err != nil {
+			t.Fatalf("write README: %v", err)
+		}
+		mustRunGit(t, repoPath, "add", "README.md")
+		mustRunGit(t, repoPath, "commit", "-m", "initial")
+		if err := os.WriteFile(filepath.Join(repoPath, "change.txt"), []byte("change\n"), 0644); err != nil {
+			t.Fatalf("write change: %v", err)
+		}
+		return &GitWorktree{repoPath: repoPath, worktreePath: repoPath, branchName: "main"}
+	}
+
+	t.Run("commits with the message written in the editor", func(t *testing.T) {
+		g := newRepo(t)
+		if err := g.StageAll(); err != nil {
+			t.Fatalf("StageAll() error = %v", err)
+		}
+		staged := mustRunGit(t, g.worktreePath, "diff", "--cached", "--name-only")
+		if !strings.Contains(staged, "change.txt") {
+			t.Fatalf("change.txt not staged, got:\n%s", staged)
+		}
+
+		cmd := g.CommitEditorCmd()
+		if cmd.Dir != g.worktreePath {
+			t.Fatalf("cmd.Dir = %q, want %q", cmd.Dir, g.worktreePath)
+		}
+		// Simulate the user writing a message in their editor.
+		cmd.Env = append(os.Environ(), `GIT_EDITOR=sh -c 'printf "custom message\n" > "$1"' editor`)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("commit failed: %v\n%s", err, out)
+		}
+
+		subject := strings.TrimSpace(mustRunGit(t, g.worktreePath, "log", "-1", "--format=%s"))
+		if subject != "custom message" {
+			t.Fatalf("commit subject = %q, want %q", subject, "custom message")
+		}
+		if dirty, err := g.IsDirty(); err != nil || dirty {
+			t.Fatalf("IsDirty() = %v, %v; want false, nil", dirty, err)
+		}
+	})
+
+	t.Run("empty message aborts the commit", func(t *testing.T) {
+		g := newRepo(t)
+		if err := g.StageAll(); err != nil {
+			t.Fatalf("StageAll() error = %v", err)
+		}
+		cmd := g.CommitEditorCmd()
+		// Editor that leaves only git's comment template behind.
+		cmd.Env = append(os.Environ(), "GIT_EDITOR=true")
+		if err := cmd.Run(); err == nil {
+			t.Fatalf("expected commit with empty message to fail")
+		}
+		if dirty, err := g.IsDirty(); err != nil || !dirty {
+			t.Fatalf("IsDirty() = %v, %v; want true, nil", dirty, err)
+		}
+	})
+}

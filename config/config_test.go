@@ -175,6 +175,7 @@ func TestLoadConfig(t *testing.T) {
 		// Options missing from the file keep their default (zero) behavior
 		assert.Equal(t, "", config.PushRemote)
 		assert.False(t, config.SkipBrowserOnPush)
+		assert.False(t, config.EditCommitMessageOnPush)
 		assert.False(t, config.PreserveBranchCase)
 	})
 
@@ -188,7 +189,8 @@ func TestLoadConfig(t *testing.T) {
 		configContent := `{
 			"default_program": "test-claude",
 			"push_remote": "upstream",
-			"skip_browser_on_push": true
+			"skip_browser_on_push": true,
+			"edit_commit_message_on_push": true
 		}`
 		err = os.WriteFile(configPath, []byte(configContent), 0644)
 		require.NoError(t, err)
@@ -201,6 +203,7 @@ func TestLoadConfig(t *testing.T) {
 
 		assert.Equal(t, "upstream", config.PushRemote)
 		assert.True(t, config.SkipBrowserOnPush)
+		assert.True(t, config.EditCommitMessageOnPush)
 	})
 
 	t.Run("returns default config on invalid JSON", func(t *testing.T) {
@@ -316,6 +319,8 @@ func TestSaveConfig(t *testing.T) {
 			PushRemote:         "upstream",
 			SkipBrowserOnPush:  true,
 			PreserveBranchCase: true,
+
+			EditCommitMessageOnPush: true,
 		}
 
 		err := SaveConfig(testConfig)
@@ -335,6 +340,7 @@ func TestSaveConfig(t *testing.T) {
 		assert.Equal(t, testConfig.BranchPrefix, loadedConfig.BranchPrefix)
 		assert.Equal(t, testConfig.PushRemote, loadedConfig.PushRemote)
 		assert.Equal(t, testConfig.SkipBrowserOnPush, loadedConfig.SkipBrowserOnPush)
+		assert.Equal(t, testConfig.EditCommitMessageOnPush, loadedConfig.EditCommitMessageOnPush)
 		assert.Equal(t, testConfig.PreserveBranchCase, loadedConfig.PreserveBranchCase)
 	})
 }

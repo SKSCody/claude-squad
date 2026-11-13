@@ -82,6 +82,9 @@ type home struct {
 	instanceStarting bool
 	// startingInstance holds a reference to the instance being started in the background.
 	startingInstance *session.Instance
+	// pendingConfirmCmd is a command queued by a confirmation modal (see confirmCmd) that
+	// is returned to Bubble Tea once the modal closes.
+	pendingConfirmCmd tea.Cmd
 
 	// -- UI Components --
 
@@ -301,6 +304,13 @@ func (m *home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case instanceChangedMsg:
 		// Handle instance changed after confirmation action
 		return m, m.instanceChanged()
+	case openCommitEditorMsg:
+		return m, m.openCommitEditor(msg.instance)
+	case commitEditorDoneMsg:
+		if msg.err != nil {
+			return m, tea.Batch(tea.WindowSize(), m.handleError(fmt.Errorf("commit aborted, nothing was pushed: %w", msg.err)))
+		}
+		return m, tea.Batch(tea.WindowSize(), m.pushCmd(msg.instance))
 	case instanceStartedMsg:
 		// Select the instance that just started (or failed)
 		m.list.SelectInstance(msg.instance)
@@ -570,7 +580,9 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 		if shouldClose {
 			m.state = stateDefault
 			m.confirmationOverlay = nil
-			return m, nil
+			cmd := m.pendingConfirmCmd
+			m.pendingConfirmCmd = nil
+			return m, cmd
 		}
 		return m, nil
 	}
@@ -719,6 +731,15 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 			return m, nil
 		}
 
+		message := fmt.Sprintf("[!] Push changes from session '%s'?", selected.Title)
+
+		if m.appConfig.EditCommitMessageOnPush {
+			// Open the user's git editor for the commit message before pushing.
+			return m, m.confirmCmd(message, func() tea.Msg {
+				return openCommitEditorMsg{instance: selected}
+			})
+		}
+
 		// Create the push action as a tea.Cmd
 		pushAction := func() tea.Msg {
 			// Default commit message with timestamp
@@ -734,7 +755,6 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 		}
 
 		// Show confirmation modal
-		message := fmt.Sprintf("[!] Push changes from session '%s'?", selected.Title)
 		return m, m.confirmAction(message, pushAction)
 	case keys.KeyCheckout:
 		selected := m.list.GetSelectedInstance()
@@ -1040,6 +1060,72 @@ func (m *home) confirmAction(message string, action tea.Cmd) tea.Cmd {
 	}
 
 	return nil
+}
+
+// confirmCmd shows a confirmation modal like confirmAction, but instead of running the
+// action inline it hands cmd back to Bubble Tea once the user confirms. Use it when the
+// action needs to return a tea.Cmd (e.g. tea.ExecProcess) or a message to Update.
+func (m *home) confirmCmd(message string, cmd tea.Cmd) tea.Cmd {
+	m.confirmAction(message, nil)
+	m.confirmationOverlay.OnConfirm = func() {
+		m.state = stateDefault
+		m.pendingConfirmCmd = cmd
+	}
+	m.confirmationOverlay.OnCancel = func() {
+		m.state = stateDefault
+		m.pendingConfirmCmd = nil
+	}
+	return nil
+}
+
+// openCommitEditorMsg asks Update to open git's commit editor for the instance's worktree.
+type openCommitEditorMsg struct {
+	instance *session.Instance
+}
+
+// commitEditorDoneMsg is sent when the git commit editor process exits.
+type commitEditorDoneMsg struct {
+	instance *session.Instance
+	err      error
+}
+
+// openCommitEditor stages the instance's changes and runs `git commit` in the foreground so
+// git opens the user's configured editor for the commit message. When there is nothing to
+// commit, it pushes straight away.
+func (m *home) openCommitEditor(instance *session.Instance) tea.Cmd {
+	worktree, err := instance.GetGitWorktree()
+	if err != nil {
+		return m.handleError(err)
+	}
+	dirty, err := worktree.IsDirty()
+	if err != nil {
+		return m.handleError(fmt.Errorf("failed to check for changes: %w", err))
+	}
+	if !dirty {
+		return m.pushCmd(instance)
+	}
+	if err := worktree.StageAll(); err != nil {
+		return m.handleError(err)
+	}
+	return tea.ExecProcess(worktree.CommitEditorCmd(), func(err error) tea.Msg {
+		return commitEditorDoneMsg{instance: instance, err: err}
+	})
+}
+
+// pushCmd pushes the instance's branch in the background. Any uncommitted changes are
+// committed with the auto-generated message first.
+func (m *home) pushCmd(instance *session.Instance) tea.Cmd {
+	return func() tea.Msg {
+		commitMsg := fmt.Sprintf("[claudesquad] update from '%s' on %s", instance.Title, time.Now().Format(time.RFC822))
+		worktree, err := instance.GetGitWorktree()
+		if err != nil {
+			return err
+		}
+		if err := worktree.PushChanges(commitMsg, !m.appConfig.SkipBrowserOnPush, m.appConfig.PushRemote); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func (m *home) View() string {

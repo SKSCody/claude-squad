@@ -2,7 +2,7 @@
 
 [Claude Squad](https://smtg-ai.github.io/claude-squad/) is a terminal app that manages multiple [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex), [Gemini](https://github.com/google-gemini/gemini-cli) (and other local agents including [Aider](https://github.com/Aider-AI/aider)) in separate workspaces, allowing you to work on multiple tasks simultaneously.
 
-> **Fork notice:** this is the `custom` branch of [SKSCody/claude-squad](https://github.com/SKSCody/claude-squad), a fork of [smtg-ai/claude-squad](https://github.com/smtg-ai/claude-squad). It adds the `push_remote`, `skip_browser_on_push` and `preserve_branch_case` config options (see [Configuration](#configuration)). The install script below installs this fork's releases.
+> **Fork notice:** this is the `custom` branch of [SKSCody/claude-squad](https://github.com/SKSCody/claude-squad), a fork of [smtg-ai/claude-squad](https://github.com/smtg-ai/claude-squad). It adds the `push_remote`, `skip_browser_on_push`, `edit_commit_message_on_push` and `preserve_branch_case` config options (see [Configuration](#configuration)). The install script below installs this fork's releases.
 
 
 ![Claude Squad Screenshot](assets/screenshot.png)
@@ -168,12 +168,13 @@ Branch names are lower-cased by default. Set `preserve_branch_case` to `true` to
 
 #### Pushing
 
-By default, the push action commits any changes, pushes the branch to `origin`, syncs it with the GitHub CLI, and opens the branch in your browser. Two options change this:
+By default, the push action commits any changes, pushes the branch to `origin`, syncs it with the GitHub CLI, and opens the branch in your browser. These options change this:
 
 | Field                  | Description                                                                                          |
 |------------------------|------------------------------------------------------------------------------------------------------|
 | `push_remote`          | Git remote to push to. When set, the branch is pushed with `git push -u <remote>` and `gh repo sync` is skipped. |
 | `skip_browser_on_push` | Set to `true` to stop opening the branch in the browser after a push.                                |
+| `edit_commit_message_on_push` | Set to `true` to write the commit message yourself: pushing opens git's commit editor (`core.editor`, `$GIT_EDITOR`, `$VISUAL` or `$EDITOR`) instead of using the auto-generated message. Leaving the message empty cancels the push. |
 
 For example, if you push branches to your own fork, configured as the `upstream` remote:
 

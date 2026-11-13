@@ -464,3 +464,56 @@ func TestConfirmationModalVisualAppearance(t *testing.T) {
 	// Test that the danger indicator is preserved
 	assert.Contains(t, rendered, "[!")
 }
+
+// TestConfirmCmd verifies that confirmCmd hands its command back to Bubble Tea only on confirm.
+func TestConfirmCmd(t *testing.T) {
+	makeHome := func() *home {
+		s := spinner.New(spinner.WithSpinner(spinner.MiniDot))
+		return &home{
+			ctx:       context.Background(),
+			state:     stateDefault,
+			appConfig: config.DefaultConfig(),
+			list:      ui.NewList(&s, false),
+			menu:      ui.NewMenu(),
+		}
+	}
+	type sentinelMsg struct{}
+
+	t.Run("y returns the queued command", func(t *testing.T) {
+		h := makeHome()
+		h.confirmCmd("Push?", func() tea.Msg { return sentinelMsg{} })
+		require.Equal(t, stateConfirm, h.state)
+
+		_, cmd := h.handleKeyPress(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")})
+		require.NotNil(t, cmd)
+		assert.IsType(t, sentinelMsg{}, cmd())
+		assert.Equal(t, stateDefault, h.state)
+		assert.Nil(t, h.pendingConfirmCmd)
+	})
+
+	t.Run("n drops the queued command", func(t *testing.T) {
+		h := makeHome()
+		h.confirmCmd("Push?", func() tea.Msg { return sentinelMsg{} })
+
+		_, cmd := h.handleKeyPress(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+		assert.Nil(t, cmd)
+		assert.Equal(t, stateDefault, h.state)
+		assert.Nil(t, h.pendingConfirmCmd)
+	})
+}
+
+// TestCommitEditorDoneWithErrorDoesNotPush verifies an aborted commit surfaces an error.
+func TestCommitEditorDoneWithErrorDoesNotPush(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // make the error-hide timer return immediately
+	h := &home{
+		ctx:       ctx,
+		state:     stateDefault,
+		appConfig: config.DefaultConfig(),
+		errBox:    ui.NewErrBox(),
+	}
+
+	_, cmd := h.Update(commitEditorDoneMsg{instance: &session.Instance{Title: "test"}, err: fmt.Errorf("exit status 1")})
+	require.NotNil(t, cmd)
+	assert.Contains(t, h.errBox.String(), "commit aborted")
+}

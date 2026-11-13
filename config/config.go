@@ -47,6 +47,9 @@ type Config struct {
 	PushRemote string `json:"push_remote"`
 	// SkipBrowserOnPush disables opening the branch in the browser after pushing.
 	SkipBrowserOnPush bool `json:"skip_browser_on_push"`
+	// EditCommitMessageOnPush opens git's commit editor to write the commit message
+	// when pushing, instead of using the auto-generated message.
+	EditCommitMessageOnPush bool `json:"edit_commit_message_on_push"`
 	// PreserveBranchCase keeps upper-case letters in branch names instead of lower-casing them.
 	PreserveBranchCase bool `json:"preserve_branch_case"`
 	// Profiles is a list of named program profiles.

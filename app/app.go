@@ -308,9 +308,15 @@ func (m *home) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.openCommitEditor(msg.instance)
 	case commitEditorDoneMsg:
 		if msg.err != nil {
-			return m, tea.Batch(tea.WindowSize(), m.handleError(fmt.Errorf("commit aborted, nothing was pushed: %w", msg.err)))
+			err := fmt.Errorf("commit aborted, nothing was pushed: %w", msg.err)
+			if restoreErr := restoreSquashedHead(msg.instance, msg.prevHead); restoreErr != nil {
+				err = fmt.Errorf("%w (%v)", err, restoreErr)
+			}
+			return m, tea.Batch(tea.WindowSize(), m.handleError(err))
 		}
-		return m, tea.Batch(tea.WindowSize(), m.pushCmd(msg.instance))
+		// The session's commits were squashed into the new one, so the remote branch
+		// may need to be overwritten.
+		return m, tea.Batch(tea.WindowSize(), m.pushCmd(msg.instance, true))
 	case instanceStartedMsg:
 		// Select the instance that just started (or failed)
 		m.list.SelectInstance(msg.instance)
@@ -748,7 +754,7 @@ func (m *home) handleKeyPress(msg tea.KeyMsg) (mod tea.Model, cmd tea.Cmd) {
 			if err != nil {
 				return err
 			}
-			if err = worktree.PushChanges(commitMsg, !m.appConfig.SkipBrowserOnPush, m.appConfig.PushRemote); err != nil {
+			if err = worktree.PushChanges(commitMsg, !m.appConfig.SkipBrowserOnPush, m.appConfig.PushRemote, false); err != nil {
 				return err
 			}
 			return nil
@@ -1086,42 +1092,57 @@ type openCommitEditorMsg struct {
 // commitEditorDoneMsg is sent when the git commit editor process exits.
 type commitEditorDoneMsg struct {
 	instance *session.Instance
+	// prevHead is the branch HEAD before the session's commits were squashed; it is
+	// restored if the commit is aborted. Empty means there is nothing to restore.
+	prevHead string
 	err      error
 }
 
-// openCommitEditor stages the instance's changes and runs `git commit` in the foreground so
-// git opens the user's configured editor for the commit message. When there is nothing to
-// commit, it pushes straight away.
+// openCommitEditor squashes all of the session's changes (its commits, including the
+// automatic pause commits, plus anything uncommitted) into a single staged change and runs
+// `git commit` in the foreground so git opens the user's configured editor for the message.
+// The editor is prefilled with the session's last hand-written commit message, so pushing
+// again with no new changes lets the message be kept or edited. When the session has no
+// changes at all, it pushes straight away.
 func (m *home) openCommitEditor(instance *session.Instance) tea.Cmd {
 	worktree, err := instance.GetGitWorktree()
 	if err != nil {
 		return m.handleError(err)
 	}
-	dirty, err := worktree.IsDirty()
+	prevHead, message, hasChanges, err := worktree.PrepareSquashCommit()
 	if err != nil {
-		return m.handleError(fmt.Errorf("failed to check for changes: %w", err))
+		return m.handleError(fmt.Errorf("failed to prepare commit: %w", err))
 	}
-	if !dirty {
-		return m.pushCmd(instance)
+	if !hasChanges {
+		return m.pushCmd(instance, false)
 	}
-	if err := worktree.StageAll(); err != nil {
-		return m.handleError(err)
-	}
-	return tea.ExecProcess(worktree.CommitEditorCmd(), func(err error) tea.Msg {
-		return commitEditorDoneMsg{instance: instance, err: err}
+	return tea.ExecProcess(worktree.CommitEditorCmd(message), func(err error) tea.Msg {
+		return commitEditorDoneMsg{instance: instance, prevHead: prevHead, err: err}
 	})
 }
 
+// restoreSquashedHead undoes openCommitEditor's squash after the commit was aborted.
+func restoreSquashedHead(instance *session.Instance, prevHead string) error {
+	if prevHead == "" {
+		return nil
+	}
+	worktree, err := instance.GetGitWorktree()
+	if err != nil {
+		return err
+	}
+	return worktree.RestoreHead(prevHead)
+}
+
 // pushCmd pushes the instance's branch in the background. Any uncommitted changes are
-// committed with the auto-generated message first.
-func (m *home) pushCmd(instance *session.Instance) tea.Cmd {
+// committed with the auto-generated message first. force pushes with --force-with-lease.
+func (m *home) pushCmd(instance *session.Instance, force bool) tea.Cmd {
 	return func() tea.Msg {
 		commitMsg := fmt.Sprintf("[claudesquad] update from '%s' on %s", instance.Title, time.Now().Format(time.RFC822))
 		worktree, err := instance.GetGitWorktree()
 		if err != nil {
 			return err
 		}
-		if err := worktree.PushChanges(commitMsg, !m.appConfig.SkipBrowserOnPush, m.appConfig.PushRemote); err != nil {
+		if err := worktree.PushChanges(commitMsg, !m.appConfig.SkipBrowserOnPush, m.appConfig.PushRemote, force); err != nil {
 			return err
 		}
 		return nil

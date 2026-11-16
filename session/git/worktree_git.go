@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -70,7 +71,9 @@ func (g *GitWorktree) runGitCommand(path string, args ...string) (string, error)
 // PushChanges commits and pushes changes in the worktree to the remote branch.
 // If remote is empty, the branch is pushed to origin and synced using the GitHub CLI.
 // Otherwise the branch is pushed to the given remote with git only.
-func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string) error {
+// When force is true the push uses --force-with-lease, for history that was rewritten
+// (see PrepareSquashCommit).
+func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string, force bool) error {
 	if remote == "" {
 		if err := checkGHCLI(); err != nil {
 			return err
@@ -101,7 +104,11 @@ func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string
 	}
 
 	// Push the branch to the remote, creating it if it doesn't exist
-	gitPushCmd := exec.Command("git", "push", "-u", pushRemote, g.branchName)
+	pushArgs := []string{"push", "-u"}
+	if force {
+		pushArgs = append(pushArgs, "--force-with-lease")
+	}
+	gitPushCmd := exec.Command("git", append(pushArgs, pushRemote, g.branchName)...)
 	gitPushCmd.Dir = g.worktreePath
 	if pushOutput, pushErr := gitPushCmd.CombinedOutput(); pushErr != nil {
 		log.ErrorLog.Print(pushErr)
@@ -139,13 +146,71 @@ func (g *GitWorktree) StageAll() error {
 }
 
 // CommitEditorCmd returns a git commit command for the worktree that opens the
-// user's configured git editor to write the commit message. It is meant to be run
-// interactively in the user's terminal (e.g. via tea.ExecProcess). Git aborts the
-// commit with a non-zero exit status if the message is left empty.
-func (g *GitWorktree) CommitEditorCmd() *exec.Cmd {
-	cmd := exec.Command("git", "commit", "--no-verify")
+// user's configured git editor to write the commit message, prefilled with
+// initialMessage when it is non-empty. It is meant to be run interactively in the
+// user's terminal (e.g. via tea.ExecProcess). Git aborts the commit with a non-zero
+// exit status if the message is left empty.
+func (g *GitWorktree) CommitEditorCmd(initialMessage string) *exec.Cmd {
+	args := []string{"commit", "--no-verify"}
+	if strings.TrimSpace(initialMessage) != "" {
+		args = append(args, "-e", "-m", initialMessage)
+	}
+	cmd := exec.Command("git", args...)
 	cmd.Dir = g.worktreePath
 	return cmd
+}
+
+// autoCommitPrefix marks commits claude-squad creates on its own (pause, auto-push).
+const autoCommitPrefix = "[claudesquad]"
+
+// PrepareSquashCommit stages everything and soft-resets the branch to the session's base
+// commit, so that the next commit holds all of the session's changes. It returns the HEAD
+// to restore (with RestoreHead) if that commit is cancelled, and the message of the newest
+// commit in the session that claude-squad didn't write itself, to prefill the editor.
+// hasChanges is false when the session has no changes relative to its base; HEAD is left
+// where it was in that case.
+func (g *GitWorktree) PrepareSquashCommit() (prevHead string, message string, hasChanges bool, err error) {
+	out, err := g.runGitCommand(g.worktreePath, "rev-parse", "HEAD")
+	if err != nil {
+		return "", "", false, fmt.Errorf("failed to read HEAD: %w", err)
+	}
+	prevHead = strings.TrimSpace(out)
+
+	if err := g.StageAll(); err != nil {
+		return "", "", false, err
+	}
+
+	if g.baseCommitSHA != "" {
+		out, err := g.runGitCommand(g.worktreePath, "log", "-n1", "--format=%B",
+			"--invert-grep", "--grep=^"+regexp.QuoteMeta(autoCommitPrefix),
+			g.baseCommitSHA+"..HEAD")
+		if err != nil {
+			return "", "", false, fmt.Errorf("failed to read session commits: %w", err)
+		}
+		message = strings.TrimSpace(out)
+
+		if _, err := g.runGitCommand(g.worktreePath, "reset", "--soft", g.baseCommitSHA); err != nil {
+			return "", "", false, fmt.Errorf("failed to squash session commits: %w", err)
+		}
+	}
+
+	// `git diff --cached --quiet` exits 1 when something is staged.
+	if _, err := g.runGitCommand(g.worktreePath, "diff", "--cached", "--quiet"); err == nil {
+		if err := g.RestoreHead(prevHead); err != nil {
+			return "", "", false, err
+		}
+		return prevHead, message, false, nil
+	}
+	return prevHead, message, true, nil
+}
+
+// RestoreHead moves the branch back to sha without touching the index or working tree,
+// undoing PrepareSquashCommit.
+func (g *GitWorktree) RestoreHead(sha string) error {
+	if _, err := g.runGitCommand(g.worktreePath, "reset", "--soft", sha); err != nil {
+		return fmt.Errorf("failed to restore branch to %s: %w", sha, err)
+	}
+	return nil
 }
 
 // CommitChanges commits changes locally without pushing to remote

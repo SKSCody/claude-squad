@@ -174,7 +174,7 @@ By default, the push action commits any changes, pushes the branch to `origin`, 
 |------------------------|------------------------------------------------------------------------------------------------------|
 | `push_remote`          | Git remote to push to. When set, the branch is pushed with `git push -u <remote>` and `gh repo sync` is skipped. |
 | `skip_browser_on_push` | Set to `true` to stop opening the branch in the browser after a push.                                |
-| `edit_commit_message_on_push` | Set to `true` to write the commit message yourself: pushing opens git's commit editor (`core.editor`, `$GIT_EDITOR`, `$VISUAL` or `$EDITOR`) instead of using the auto-generated message. Leaving the message empty cancels the push. |
+| `edit_commit_message_on_push` | Set to `true` to write the commit message yourself: pushing opens git's commit editor (`core.editor`, `$GIT_EDITOR`, `$VISUAL` or `$EDITOR`) instead of using the auto-generated message. Every push asks for a message: all of the session's changes (its commits, including the automatic pause commits, plus anything uncommitted) are squashed into one commit with that message, and the branch is pushed with `--force-with-lease`. The editor is prefilled with the session's last hand-written message. Leaving the message empty cancels the push and leaves the branch as it was. |
 
 For example, if you push branches to your own fork, configured as the `upstream` remote:
 

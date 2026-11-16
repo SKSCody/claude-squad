@@ -69,7 +69,7 @@ func (g *GitWorktree) runGitCommand(path string, args ...string) (string, error)
 }
 
 // PushChanges commits and pushes changes in the worktree to the remote branch.
-// If remote is empty, the branch is pushed to origin and synced using the GitHub CLI.
+// If remote is empty, the branch is pushed to origin (the GitHub CLI is required).
 // Otherwise the branch is pushed to the given remote with git only.
 // When force is true the push uses --force-with-lease, for history that was rewritten
 // (see PrepareSquashCommit).
@@ -113,16 +113,6 @@ func (g *GitWorktree) PushChanges(commitMessage string, open bool, remote string
 	if pushOutput, pushErr := gitPushCmd.CombinedOutput(); pushErr != nil {
 		log.ErrorLog.Print(pushErr)
 		return fmt.Errorf("failed to push branch: %s (%w)", pushOutput, pushErr)
-	}
-
-	if remote == "" {
-		// Now sync with remote
-		syncCmd := exec.Command("gh", "repo", "sync", "-b", g.branchName)
-		syncCmd.Dir = g.worktreePath
-		if output, err := syncCmd.CombinedOutput(); err != nil {
-			log.ErrorLog.Print(err)
-			return fmt.Errorf("failed to sync changes: %s (%w)", output, err)
-		}
 	}
 
 	// Open the branch in the browser
